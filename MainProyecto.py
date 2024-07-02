@@ -115,7 +115,33 @@ def combo_event2(value):
     result=ejecutar_query_sqlite('progra2024_final.db', 'personas_coordenadas',columns='Latitude,Longitude,Nombre,Apellido', where_column='RUT', where_value=value)
     nombre_apellido=str(result[0][2])+' '+str(result[0][3])
     marker_2 = map_widget.set_marker(result[0][0], result[0][1], text=nombre_apellido)
-   
+
+def eliminar_dato(tree, db_name, table_name):
+    # Obtener la fila seleccionada
+    selected_item = tree.selection()
+    
+    if selected_item:
+        # Obtener los valores de la fila seleccionada
+        values = tree.item(selected_item, 'values')
+        
+        # Suponiendo que el primer valor es el identificador único (ID)
+        id_to_delete = values[0]
+        
+        # Eliminar la fila del Treeview
+        tree.delete(selected_item)
+        
+        # Eliminar la fila de la base de datos
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (id_to_delete,))
+        conn.commit()
+        conn.close()
+        
+        # Mostrar mensaje de confirmación
+        CTkMessagebox(title="Eliminar dato", message="El dato ha sido eliminado.")
+    else:
+        # Mostrar mensaje de error si no hay fila seleccionada
+        CTkMessagebox(title="Error", message="No se ha seleccionado ninguna fila.")
     
 def combo_event(value):
     pass
@@ -253,7 +279,7 @@ def mostrar_datos(datos):
     boton_modificar.grid(row=0, column=2, pady=(0, 0))
 
     boton_eliminar = ctk.CTkButton(
-        master=data_panel_superior, text="Eliminar dato", command=lambda: editar_panel(root), fg_color='purple', hover_color='red')
+        master=data_panel_superior, text="Eliminar dato", command=lambda: eliminar_dato(tree, 'progra2024_final.db', 'personas_coordenadas'), fg_color='purple', hover_color='red')
     boton_eliminar.grid(row=0, column=3, padx=(10, 0))
 #################################################################################################################
 def select_frame_by_name(name):
@@ -454,7 +480,28 @@ optionmenu_1 = ctk.CTkOptionMenu(third_frame_top, dynamic_resizing=True,
                                                         values=["Value 1", "Value 2", "Value Long Long Long"],command=lambda value:combo_event(value))
 optionmenu_1.grid(row=0, column=1, padx=5, pady=(5, 5))
 
+#--------------------------------------------------------------------------
+def agregar_lt_lg():
+    csv_file_path = 'data_a_procesar.csv.csv'
+    df = pd.read_csv(csv_file_path)
+    # Inicializar las columnas de latitud y longitud con valores nulos
+    df['latitud'] = 0
+    df['longitud'] = 0
+    
+    if (df['latitud'] != 0).any() or (df['longitud'] != 0).any():
+            print("Las columnas 'latitud' y 'longitud' ya contienen datos diferentes de cero.")
+            return  
+    else:
+        df['latitud'] = [0] * len(df)
+        df['longitud'] = [0] * len(df)
+    
+    # Guardar el DataFrame de vuelta en el archivo CSV
+    df.to_csv(csv_file_path, index=False)
 
+    return df
+
+agregar_lt_lg()
+#_--------------------------------------------------------------------------
 
 
 
