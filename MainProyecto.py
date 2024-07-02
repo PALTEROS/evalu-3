@@ -1,9 +1,9 @@
 import math
 import customtkinter as ctk
 import os
-import tkinter
+import tkinter as tk
 from PIL import Image
-from tkinter import filedialog
+from tkinter import filedialog, ttk
 import pandas as pd
 from CTkTable import CTkTable
 from CTkTableRowSelector import CTkTableRowSelector
@@ -118,7 +118,7 @@ def center_window(window, width, height):
 
     window.geometry(f"{width}x{height}+{x}+{y}")
 
-def setup_toplevel(window):
+def setup_toplevel(window, selected_data):
     window.geometry("400x300")
     window.title("Modificar datos")
     center_window(window, 400, 300)  # Centrar la ventana secundaria
@@ -128,36 +128,90 @@ def setup_toplevel(window):
 
     label = ctk.CTkLabel(window, text="ToplevelWindow")
     label.pack(padx=20, pady=20)
+    canvas = tk.Canvas(window)
+    scrollbar = tk.Scrollbar(window,orient="vertical",command=canvas.yview)
+    scroll_frame = ctk.CTkFrame(canvas)
+
+    scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.create_window((0,0), window=scroll_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    for i, value in enumerate(selected_data):
+        label = ctk.CTkLabel(scroll_frame, text=f"Dato {i + 1}:")
+        label.pack(padx=10, pady=5)
+        entry = ctk.CTkEntry(scroll_frame)
+        entry.insert(0, value)
+        entry.pack(padx=10, pady=5)
+
 def calcular_distancia(RUT1,RUT2):
     pass
 def guardar_data(row_selector):
     print(row_selector.get())
     print(row_selector.table.values)
-def editar_panel(root):
+
+def selecion_data(tree):
+    selected_item = tree.focus()
+    selected_data = tree.item(selected_item,'values')
+    return selected_data
+
+def editar_panel(root, selected_data):
     global toplevel_window
     if toplevel_window is None or not toplevel_window.winfo_exists():
         toplevel_window = ctk.CTkToplevel(root)
-        setup_toplevel(toplevel_window)
+        setup_toplevel(toplevel_window, selected_data)
+        for i,value in enumerate(selected_data):
+            label = ctk.CTkLabel(toplevel_window, text=f"Dato {i +1}:")
+            label.pack(padx=10, pady=5)
+            entry = ctk.CTkEntry(toplevel_window)
+            entry.insert(0, value)
+            entry.pack(padx=10, pady=5)
     else:
         toplevel_window.focus()
+
 # Función para manejar la selección del archivo
 def seleccionar_archivo():
     archivo = filedialog.askopenfilename(filetypes=[("Archivos CSV", "*.csv")])
     if archivo:
         print(f"Archivo seleccionado: {archivo}")
-        mostrar_datos(archivo)
+        leer_archivo_csv(archivo)
+###############################################################################################################
 def on_scrollbar_move(*args):
     canvas.yview(*args)
     canvas.bbox("all")
+###############################################################################################################
 def leer_archivo_csv(ruta_archivo):
     try:
         datos = pd.read_csv(ruta_archivo)
         mostrar_datos(datos)
     except Exception as e:
         print(f"Error al leer el archivo CSV: {e}")
-
+################################################################################################################
 # Función para mostrar los datos en la tabla
 def mostrar_datos(datos):
+    frame_treeview = ctk.CTkFrame(home_frame)
+    frame_treeview.grid(row=1 ,column=0 , padx=20 , pady=20 , sticky="nsew" )
+
+    horsroll = tk.Scrollbar(frame_treeview, orient="horizontal")
+
+    tree = ttk.Treeview(frame_treeview, columns=list(datos.columns), show="headings", xscrollcommand= horsroll.set)
+    tree.grid(row=0 ,column=0 ,sticky="nsew")
+
+    for col in datos.columns:
+        tree.heading(col, text=col)
+        tree.column(col, width=100)
+    
+    for _, row in datos.iterrows():
+        tree.insert("", "end", values=list(row))
+
+    horsroll.grid(row=1, column=0, sticky="ew")
+    horsroll.config(command=tree.xview)
+
+    frame_treeview.grid_rowconfigure(0, weight=1)
+    frame_treeview.grid_columnconfigure(0, weight=1)
+
     # Botón para imprimir las filas seleccionadas
     boton_imprimir = ctk.CTkButton(
         master=home_frame, text="guardar informacion", command=lambda: guardar_data())
@@ -165,13 +219,14 @@ def mostrar_datos(datos):
     
     # Botón para imprimir las filas seleccionadas
     boton_imprimir = ctk.CTkButton(
-        master=data_panel_superior, text="modificar dato", command=lambda: editar_panel(root))
+        master=data_panel_superior, text="modificar dato", command=lambda: editar_panel(root, selecion_data(tree)))
     boton_imprimir.grid(row=0, column=2, pady=(0, 0))
 
     # Botón para imprimir las filas seleccionadas
     boton_imprimir = ctk.CTkButton(
         master=data_panel_superior, text="Eliminar dato", command=lambda: editar_panel(root),fg_color='purple',hover_color='red')
     boton_imprimir.grid(row=0, column=3, padx=(10, 0))
+#################################################################################################################
 def select_frame_by_name(name):
     home_button.configure(fg_color=("gray75", "gray25") if name == "home" else "transparent")
     frame_2_button.configure(fg_color=("gray75", "gray25") if name == "frame_2" else "transparent")
