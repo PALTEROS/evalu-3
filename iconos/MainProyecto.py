@@ -53,42 +53,22 @@ def ejecutar_query_sqlite(database_name, table_name, columns='*', where_column=N
 
     return resultados
 
-def guardar_data(tree):
-    selected_items = tree.selection()
-    data = [tree.item(item, 'values') for item in selected_items]
-    if data:
-        df = pd.DataFrame(data, columns=[tree.heading(col)["text"] for col in tree["columns"]])
-        
-        # Convertir coordenadas UTM a latitud y longitud
-        df[['Latitud', 'Longitud']] = df.apply(lambda row: utm_to_latlong(float(row['Easting']), float(row['Northing']), int(row['ZoneNumber']), row['ZoneLetter']), axis=1, result_type='expand')
-        
-        # Guardar en la base de datos
-        agregar_df_a_sqlite(df, 'progra2024_final.db', 'personas_coordenadas')
-        
-        # Mostrar mensaje de confirmación
-        CTkMessagebox(title="Actualización de datos", message="Los datos han sido actualizados.")
-
 def agregar_df_a_sqlite(df, database_name, table_name):
+    """
+    Agrega un DataFrame a una tabla SQLite.
+
+    Parámetros:
+    df (pd.DataFrame): DataFrame a agregar a la base de datos.
+    database_name (str): Nombre del archivo de la base de datos SQLite.
+    table_name (str): Nombre de la tabla donde se insertará el DataFrame.
+    """
+    # Conectar a la base de datos SQLite
     conn = sqlite3.connect(database_name)
-    cursor = conn.cursor()
     
-    # Crear tabla si no existe
-    cursor.execute(f'''
-    CREATE TABLE IF NOT EXISTS {table_name} (
-        RUT TEXT PRIMARY KEY,
-        Easting REAL,
-        Northing REAL,
-        ZoneNumber INTEGER,
-        ZoneLetter TEXT,
-        Latitud REAL,
-        Longitud REAL
-    )
-    ''')
-    
-    # Insertar datos en la tabla
+    # Agregar el DataFrame a la tabla SQLite
     df.to_sql(table_name, conn, if_exists='replace', index=False)
     
-    conn.commit()
+    # Cerrar la conexión
     conn.close()
 #documentacion=https://github.com/TomSchimansky/TkinterMapView?tab=readme-ov-file#create-path-from-position-list
 def get_country_city(lat,long):
@@ -168,21 +148,9 @@ def setup_toplevel(window, selected_data):
 
 def calcular_distancia(RUT1,RUT2):
     pass
-
-def guardar_data(tree):
-    selected_items = tree.selection()
-    data = [tree.item(item, 'values') for item in selected_items]
-    if data:
-        df = pd.DataFrame(data, columns=[tree.heading(col)["text"] for col in tree["columns"]])
-        
-        # Convertir coordenadas UTM a latitud y longitud
-        df[['Latitud', 'Longitud']] = df.apply(lambda row: utm_to_latlong(float(row['UTM_Easting']), float(row['UTM_Northing']), int(row['UTM_Zone_Number']), row['UTM_Zone_Letter']), axis=1, result_type='expand')
-        
-        # Guardar en la base de datos
-        agregar_df_a_sqlite(df, 'progra2024_final.db', 'personas_coordenadas')
-        
-        # Mostrar mensaje de confirmación
-        CTkMessagebox(title="Actualización de datos", message="Los datos han sido actualizados.")
+def guardar_data(row_selector):
+    print(row_selector.get())
+    print(row_selector.table.values)
 
 def selecion_data(tree):
     selected_item = tree.focus()
@@ -224,17 +192,17 @@ def leer_archivo_csv(ruta_archivo):
 # Función para mostrar los datos en la tabla
 def mostrar_datos(datos):
     frame_treeview = ctk.CTkFrame(home_frame)
-    frame_treeview.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
+    frame_treeview.grid(row=1 ,column=0 , padx=20 , pady=20 , sticky="nsew" )
 
     horsroll = tk.Scrollbar(frame_treeview, orient="horizontal")
 
-    tree = ttk.Treeview(frame_treeview, columns=list(datos.columns), show="headings", xscrollcommand=horsroll.set)
-    tree.grid(row=0, column=0, sticky="nsew")
+    tree = ttk.Treeview(frame_treeview, columns=list(datos.columns), show="headings", xscrollcommand= horsroll.set)
+    tree.grid(row=0 ,column=0 ,sticky="nsew")
 
     for col in datos.columns:
         tree.heading(col, text=col)
         tree.column(col, width=100)
-
+    
     for _, row in datos.iterrows():
         tree.insert("", "end", values=list(row))
 
@@ -244,17 +212,20 @@ def mostrar_datos(datos):
     frame_treeview.grid_rowconfigure(0, weight=1)
     frame_treeview.grid_columnconfigure(0, weight=1)
 
-    boton_guardar = ctk.CTkButton(
-        master=home_frame, text="Guardar información", command=lambda: guardar_data(tree))
-    boton_guardar.grid(row=2, column=0, pady=(0, 20))
+    # Botón para imprimir las filas seleccionadas
+    boton_imprimir = ctk.CTkButton(
+        master=home_frame, text="guardar informacion", command=lambda: guardar_data())
+    boton_imprimir.grid(row=2, column=0, pady=(0, 20))
+    
+    # Botón para imprimir las filas seleccionadas
+    boton_imprimir = ctk.CTkButton(
+        master=data_panel_superior, text="modificar dato", command=lambda: editar_panel(root, selecion_data(tree)))
+    boton_imprimir.grid(row=0, column=2, pady=(0, 0))
 
-    boton_modificar = ctk.CTkButton(
-        master=data_panel_superior, text="Modificar dato", command=lambda: editar_panel(root, selecion_data(tree)))
-    boton_modificar.grid(row=0, column=2, pady=(0, 0))
-
-    boton_eliminar = ctk.CTkButton(
-        master=data_panel_superior, text="Eliminar dato", command=lambda: editar_panel(root), fg_color='purple', hover_color='red')
-    boton_eliminar.grid(row=0, column=3, padx=(10, 0))
+    # Botón para imprimir las filas seleccionadas
+    boton_imprimir = ctk.CTkButton(
+        master=data_panel_superior, text="Eliminar dato", command=lambda: editar_panel(root),fg_color='purple',hover_color='red')
+    boton_imprimir.grid(row=0, column=3, padx=(10, 0))
 #################################################################################################################
 def select_frame_by_name(name):
     home_button.configure(fg_color=("gray75", "gray25") if name == "home" else "transparent")
@@ -301,7 +272,7 @@ root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(1, weight=1)
 
 # Establecer la carpeta donde están las imágenes
-image_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "iconos")
+image_path = os.path.join(os.path.dirname(os.path.realpath(_file_)), "iconos")
 logo_image = ctk.CTkImage(Image.open(os.path.join(image_path, "uct.png")), size=(140, 50))
 home_image = ctk.CTkImage(light_image=Image.open(os.path.join(image_path, "db.png")),
                           dark_image=Image.open(os.path.join(image_path, "home_light.png")), size=(20, 20))
@@ -453,7 +424,6 @@ label_rut.grid(row=0, column=0, padx=5, pady=5)
 optionmenu_1 = ctk.CTkOptionMenu(third_frame_top, dynamic_resizing=True,
                                                         values=["Value 1", "Value 2", "Value Long Long Long"],command=lambda value:combo_event(value))
 optionmenu_1.grid(row=0, column=1, padx=5, pady=(5, 5))
-
 
 
 
