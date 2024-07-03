@@ -16,59 +16,54 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 
-def haversine(lat1, lon1, lat2, lon2):
-    #Función para calcular la distancia entre 2 puntos a partir de la longitud
-    pass
+distancia_global = None
+
 def ejecutar_query_sqlite(database_name, table_name, columns='*', where_column=None, where_value=None):
-    """
-    Ejecuta una consulta SQL en una base de datos SQLite y retorna una lista con los resultados.
-
-    Parámetros:
-    database_name (str): Nombre del archivo de la base de datos SQLite.
-    table_name (str): Nombre de la tabla para realizar la consulta.
-    columns (str): Columnas a seleccionar (por defecto es '*').
-    where_column (str): Nombre de la columna para la cláusula WHERE (opcional).
-    where_value (any): Valor para la cláusula WHERE (opcional).
-
-    Retorna:
-    list: Lista con los resultados de la consulta.
-    """
-    # Conectar a la base de datos SQLite
     conn = sqlite3.connect(database_name)
     cursor = conn.cursor()
-
-    # Crear la consulta SQL
     query = f'SELECT {columns} FROM {table_name}'
     if where_column and where_value is not None:
         query += f' WHERE {where_column} = ?'
-
-    # Ejecutar la consulta SQL
     cursor.execute(query, (where_value,) if where_column and where_value is not None else ())
-
-    # Obtener los resultados de la consulta
     resultados = cursor.fetchall()
-
-    # Cerrar la conexión
     conn.close()
-
     return resultados
 
-def agregar_df_a_sqlite(df, database_name, table_name):
-    """
-    Agrega un DataFrame a una tabla SQLite.
+def guardar_data(tree):
+    selected_items = tree.selection()
+    data = [tree.item(item, 'values') for item in selected_items]
+    if data:
+        df = pd.DataFrame(data, columns=[tree.heading(col)["text"] for col in tree["columns"]])
+        
+        # Convertir coordenadas UTM a latitud y longitud
+        agregar_lat_long_a_csv('data_a_procesar.csv.csv')
+        
+        # Guardar en la base de datos
+        agregar_df_a_sqlite(df, 'progra2024_final.db', 'personas_coordenadas')
 
-    Parámetros:
-    df (pd.DataFrame): DataFrame a agregar a la base de datos.
-    database_name (str): Nombre del archivo de la base de datos SQLite.
-    table_name (str): Nombre de la tabla donde se insertará el DataFrame.
-    """
-    # Conectar a la base de datos SQLite
+        # Mostrar mensaje de confirmación
+        CTkMessagebox(title="Actualización de datos", message="Los datos han sido actualizados.")
+
+def agregar_df_a_sqlite(df, database_name, table_name):
     conn = sqlite3.connect(database_name)
+    cursor = conn.cursor()
     
-    # Agregar el DataFrame a la tabla SQLite
-    df.to_sql(table_name, conn, if_exists='replace', index=False)
+    # Crear tabla si no existe
+    cursor.execute(f'''
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        RUT TEXT PRIMARY KEY,
+        Easting REAL,
+        Northing REAL,
+        ZoneNumber INTEGER,
+        ZoneLetter TEXT,
+        Latitud REAL,
+        Longitud REAL
+    )
+    ''')
+    # Insertar datos en la tabla
+    df.to_sql(table_name, conn, if_exists='append', index=False)
     
-    # Cerrar la conexión
+    conn.commit()
     conn.close()
 #documentacion=https://github.com/TomSchimansky/TkinterMapView?tab=readme-ov-file#create-path-from-position-list
 def get_country_city(lat,long):
@@ -78,34 +73,16 @@ def get_country_city(lat,long):
     return country,city
 # Definir la función para convertir UTM a latitud y longitud
 def utm_to_latlong(easting, northing, zone_number, zone_letter):
-    # Definir el sistema de proyección UTM y el sistema de coordenadas geográficas (latlong)
-    utm_proj = pyproj.Proj(proj='utm', zone=zone_number, datum='WGS84', ellps='WGS84')
-    latlong_proj = pyproj.Proj(proj='latlong', datum='WGS84', ellps='WGS84')
-    # Convertir las coordenadas UTM a latitud y longitud
-    lon, lat = pyproj.transform(utm_proj, latlong_proj, easting, northing)
+    # Crear el proyector UTM
+    utm_proj = pyproj.Proj(proj='utm', zone=zone_number, datum='WGS84')
     
-    # Devolver las coordenadas redondeadas a dos decimales
-    return round(lat, 2), round(lon, 2)
-
-# def prueba(x,y,c):
-#     # Definir el sistema de proyección UTM y el sistema de coordenadas geográficas (latlong)
-#     utm_proj = pyproj.Proj(proj='utm', zone=c, datum='WGS84', ellps='WGS84')
-#     latlong_proj = pyproj.Proj(proj='latlong', datum='WGS84', ellps='WGS84')
-#     # Convertir las coordenadas UTM a latitud y longitud
-#     lon, lat = pyproj.transform(utm_proj, latlong_proj, x, y)
-#     print(lon, lat)
-    
-#def hola():
-#    x=int(input("easting: "))
-#    y=int(input("norting: "))
-#    c=int(input("numero de zona:"))
-#    prueba(x,y,c)
-#hola()
-    
-    
+    # Convertir UTM a latitud y longitud
+    longitude, latitude = utm_proj(easting, northing, inverse=True)
+    return round(latitude,2), round(longitude,2)
 def insertar_data(data:list):
     pass
     #necesitamos convertir las coordenadas UTM a lat long
+    
 def combo_event2(value):
     try:
         marker_2.delete()
@@ -116,13 +93,36 @@ def combo_event2(value):
     marker_2 = map_widget.set_marker(result[0][0], result[0][1], text=nombre_apellido)
    
     
-def combo_event(value):
-    pass
-    #mapas.set_address("moneda, santiago, chile")
-    #mapas.set_position(48.860381, 2.338594)  # Paris, France
-    #mapas.set_zoom(15)
-    #address = tkintermapview.convert_address_to_coordinates("London")
-    #print(address)
+def combo_event_r1(value):
+    global marker_1
+    # Eliminar el marcador anterior si existe
+    if marker_1:
+        marker_1.delete()
+    
+    # Obtener los datos del nuevo marcador
+    result = ejecutar_query_sqlite('progra2024_final.db', 'personas_coordenadas', columns='Latitud,Longitud,Nombre,Apellido', where_column='RUT', where_value=value)
+    if result:
+        nombre_apellido = str(result[0][2]) + ' ' + str(result[0][3])
+        # Agregar el nuevo marcador
+        marker_1 = map_widget.set_marker(result[0][0], result[0][1], text=nombre_apellido)
+
+
+def combo_event_r2(value):
+    global marker_2
+    # Eliminar el marcador anterior si existe
+    if marker_2:
+        marker_2.delete()
+    
+    # Obtener los datos del nuevo marcador
+    result = ejecutar_query_sqlite('progra2024_final.db', 'personas_coordenadas', columns='Latitud,Longitud,Nombre,Apellido', where_column='RUT', where_value=value)
+    if result:
+        nombre_apellido = str(result[0][2]) + ' ' + str(result[0][3])
+        # Agregar el nuevo marcador
+        marker_2 = map_widget.set_marker(result[0][0], result[0][1], text=nombre_apellido)
+
+marker_1=None
+marker_2=None
+
 def center_window(window, width, height):
     # Obtener el tamaño de la ventana principal
     root.update_idletasks()
@@ -164,22 +164,89 @@ def setup_toplevel(window, selected_data):
         entry = ctk.CTkEntry(scroll_frame)
         entry.insert(0, value)
         entry.pack(padx=10, pady=5)
+#-----------------------------------------------------------------------------------------
+def haversine(lat1, lon1, lat2, lon2, R=6371):
+    # Convertir grados a radianes
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
 
-def calcular_distancia(RUT1,RUT2):
-    pass
+    # Calcular diferencias
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
 
+    # Aplicar la fórmula del haversine
+    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+    c = 2 * math.asin(math.sqrt(a))
 
+    # Calcular la distancia
+    distance = R * c
+    return distance
 
-def guardar_data(tree):
-    selected_item = tree.focus()
-    CTkMessagebox(title="Datos Guardados", message="Los datos han sido actualizados con éxito.")
+def calcular_distancia(RUT1, RUT2):
+    x=[]
+    global distancia_global
+    # Obtener coordenadas del primer RUT
+    result1 = ejecutar_query_sqlite('progra2024_final.db', 'personas_coordenadas', columns='Latitud,Longitud', where_column='RUT', where_value=RUT1)
+    if not result1:
+        return f"No se encontraron coordenadas para el RUT: {RUT1}"
+    
+    lat1, lon1 = result1[0]
+
+    # Obtener coordenadas del segundo RUT
+    result2 = ejecutar_query_sqlite('progra2024_final.db', 'personas_coordenadas', columns='Latitud,Longitud', where_column='RUT', where_value=RUT2)
+    if not result2:
+        return f"No se encontraron coordenadas para el RUT: {RUT2}"
+    
+    lat2, lon2 = result2[0]
+
+    # Calcular la distancia utilizando la fórmula del haversine
+    distancia = haversine(lat1, lon1, lat2, lon2)
+    x.append(distancia)
+    distancia_global = distancia
+    return f"La distancia entre los RUT {RUT1} y {RUT2} es de {distancia:.2f} km"
+
+def mostrar_distancia():
+    RUT1 = optionmenu_1.get()
+    RUT2 = optionmenu_2.get()
+    distancia = calcular_distancia(RUT1, RUT2)
+    x.append(distancia)
+    print(distancia)
+
+#-------------------------------------------------------------------------------------------
+def eliminar_dato(tree, db_name, table_name):
+    # Obtener la fila seleccionada
+    selected_item = tree.selection()
+    
+    if selected_item:
+        # Obtener los valores de la fila seleccionada
+        values = tree.item(selected_item, 'values')
+        
+        # Suponiendo que el primer valor es el identificador único (ID)
+        rut_to_delete = values[0]
+        
+        # Eliminar la fila del Treeview
+        tree.delete(selected_item)
+        
+        # Eliminar la fila de la base de datos
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {table_name} WHERE RUT = ?", (rut_to_delete,))
+        conn.commit()
+        conn.close()
+        
+        # Mostrar mensaje de confirmación
+        CTkMessagebox(title="Eliminar dato", message="El dato ha sido eliminado.")
+    else:
+        # Mostrar mensaje de error si no hay fila seleccionada
+        CTkMessagebox(title="Error", message="No se ha seleccionado ninguna fila.")
     
 
 def selecion_data(tree):
     selected_item = tree.focus()
     selected_data = tree.item(selected_item,'values')
     return selected_data
-
 
 def editar_panel(root, selected_data):
     global toplevel_window
@@ -216,17 +283,17 @@ def leer_archivo_csv(ruta_archivo):
 # Función para mostrar los datos en la tabla
 def mostrar_datos(datos):
     frame_treeview = ctk.CTkFrame(home_frame)
-    frame_treeview.grid(row=1 ,column=0 , padx=20 , pady=20 , sticky="nsew" )
+    frame_treeview.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
 
     horsroll = tk.Scrollbar(frame_treeview, orient="horizontal")
 
-    tree = ttk.Treeview(frame_treeview, columns=list(datos.columns), show="headings", xscrollcommand= horsroll.set)
-    tree.grid(row=0 ,column=0 ,sticky="nsew")
+    tree = ttk.Treeview(frame_treeview, columns=list(datos.columns), show="headings", xscrollcommand=horsroll.set)
+    tree.grid(row=0, column=0, sticky="nsew")
 
     for col in datos.columns:
         tree.heading(col, text=col)
         tree.column(col, width=100)
-    
+
     for _, row in datos.iterrows():
         tree.insert("", "end", values=list(row))
 
@@ -236,21 +303,26 @@ def mostrar_datos(datos):
     frame_treeview.grid_rowconfigure(0, weight=1)
     frame_treeview.grid_columnconfigure(0, weight=1)
 
-    # Botón para imprimir las filas seleccionadas
-    boton_imprimir = ctk.CTkButton(
-        master=home_frame, text="guardar informacion", command=lambda: guardar_data())
-    boton_imprimir.grid(row=2, column=0, pady=(0, 20))
-    
-    # Botón para imprimir las filas seleccionadas
-    boton_imprimir = ctk.CTkButton(
-        master=data_panel_superior, text="modificar dato", command=lambda: editar_panel(root, selecion_data(tree)))
-    boton_imprimir.grid(row=0, column=2, pady=(0, 0))
+    boton_guardar = ctk.CTkButton(
+        master=home_frame, text="Guardar información", command=lambda: guardar_data(tree))
+    boton_guardar.grid(row=2, column=0, pady=(0, 20))
 
-    # Botón para imprimir las filas seleccionadas
-    boton_imprimir = ctk.CTkButton(
-        master=data_panel_superior, text="Eliminar dato", command=lambda: editar_panel(root),fg_color='purple',hover_color='red')
-    boton_imprimir.grid(row=0, column=3, padx=(10, 0))
+    boton_modificar = ctk.CTkButton(
+        master=data_panel_superior, text="Modificar dato", command=lambda: editar_panel(root, selecion_data(tree)))
+    boton_modificar.grid(row=0, column=2, pady=(0, 0))
+
+    boton_eliminar = ctk.CTkButton(
+        master=data_panel_superior, text="Eliminar dato", command=lambda: eliminar_dato(tree, 'progra2024_final.db', 'personas_coordenadas'), fg_color='purple', hover_color='red')
+    boton_eliminar.grid(row=0, column=3, padx=(10, 0))
 #################################################################################################################
+#WEA
+#################################################################################################################
+def cl_distancia():
+    pass
+
+
+
+##############################################################################################################
 def select_frame_by_name(name):
     home_button.configure(fg_color=("gray75", "gray25") if name == "home" else "transparent")
     frame_2_button.configure(fg_color=("gray75", "gray25") if name == "frame_2" else "transparent")
@@ -295,21 +367,6 @@ root.geometry("950x450")
 root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(1, weight=1)
 
-#establecer donde se ubica el data a procesar
-def agregar_lt_lg():
-    csv_file_path = 'data_a_procesar.csv.csv'
-    df = pd.read_csv(csv_file_path)
-    if (df['latitud'] != 0).any() or (df['longitud'] != 0).any():
-            print("Las columnas 'latitud' y 'longitud' ya contienen datos diferentes de cero.")
-            return  
-    else:
-        df['latitud'] = [0] * len(df)
-        df['longitud'] = [0] * len(df)
-    
-    # Guardar el DataFrame de vuelta en el archivo CSV
-    df.to_csv(csv_file_path, index=False)
-
-agregar_lt_lg()
 # Establecer la carpeta donde están las imágenes
 image_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "iconos")
 logo_image = ctk.CTkImage(Image.open(os.path.join(image_path, "uct.png")), size=(140, 50))
@@ -460,15 +517,56 @@ third_frame_inf.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 map_widget=mapas(third_frame_inf)
 label_rut = ctk.CTkLabel(third_frame_top, text="RUT",font=ctk.CTkFont(size=15, weight="bold"))
 label_rut.grid(row=0, column=0, padx=5, pady=5)
-optionmenu_1 = ctk.CTkOptionMenu(third_frame_top, dynamic_resizing=True,
-                                                        values=["Value 1", "Value 2", "Value Long Long Long"],command=lambda value:combo_event(value))
+label_rut2 = ctk.CTkLabel(third_frame_top, text="RUT",font=ctk.CTkFont(size=15, weight="bold"))
+label_rut2.grid(row=0, column=2, padx=10, pady=10)
+#################################################################################
+#mostrar distancia
+################################################################################
+
+
+label_rut3 = ctk.CTkLabel(third_frame_top, text="distancia",font=ctk.CTkFont(size=15, weight="bold"))
+label_rut3.grid(row=1, column=0, padx=10, pady=10)
+
+#############################################################
+#opciones y botones
+#############################################################
+def obtener_ruts(database_name, table_name):
+    conn = sqlite3.connect(database_name)
+    cursor = conn.cursor()
+    query = f'SELECT RUT FROM {table_name}'
+    cursor.execute(query)
+    ruts = cursor.fetchall()
+    conn.close()
+    ruts = [rut[0] for rut in ruts]
+    return ruts
+
+ruts = obtener_ruts('progra2024_final.db', 'personas_coordenadas')
+
+boton_calcular = ctk.CTkButton(
+    master=third_frame_top, text="calcular distancia", command=mostrar_distancia)
+boton_calcular.grid(row=0, column=4, padx=(10, 10))
+
+optionmenu_1 = ctk.CTkOptionMenu(third_frame_top, dynamic_resizing=True, values=(ruts), command=combo_event_r1)
 optionmenu_1.grid(row=0, column=1, padx=5, pady=(5, 5))
 
+optionmenu_2 = ctk.CTkOptionMenu(third_frame_top, dynamic_resizing=True, values=(ruts), command=combo_event_r2)
+optionmenu_2.grid(row=0, column=3, padx=10, pady=(10, 10))
 
+#_--------------------------------------------------------------------------
 
+def agregar_lat_long_a_csv(csv_file):
+    # Leer el archivo CSV
+    df = pd.read_csv(csv_file)
+    
+    # Convertir coordenadas UTM a latitud y longitud
+    df[['Latitud', 'Longitud']] = df.apply(lambda row: utm_to_latlong(float(row['UTM_Easting']), float(row['UTM_Northing']), int(row['UTM_Zone_Number']), row['UTM_Zone_Letter']), axis=1, result_type='expand')
+    
+    # Guardar el archivo CSV actualizado
+    df.to_csv(csv_file, index=False)
 
+# Ejemplo de uso
 
-
+#-------------------------------------------------------------
 # Seleccionar el marco predeterminado
 select_frame_by_name("home")
 toplevel_window = None
