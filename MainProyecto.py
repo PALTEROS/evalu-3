@@ -59,8 +59,7 @@ def guardar_data(tree):
     if data:
         df = pd.DataFrame(data, columns=[tree.heading(col)["text"] for col in tree["columns"]])
         
-        # Convertir coordenadas UTM a latitud y longitud
-        agregar_lat_long_a_csv('data_a_procesar.csv.csv')
+    
         
         # Guardar en la base de datos
         agregar_df_a_sqlite(df, 'progra2024_final.db', 'personas_coordenadas')
@@ -139,6 +138,10 @@ def center_window(window, width, height):
 
     window.geometry(f"{width}x{height}+{x}+{y}")
 
+#s
+
+    #CTkMessagebox(title="Modificar dato", message="Los dato fueron modificados")
+
 def setup_toplevel(window, selected_data):
     window.geometry("400x300")
     window.title("Modificar datos")
@@ -147,7 +150,7 @@ def setup_toplevel(window, selected_data):
     window.focus_force()  # Forzar el enfoque en la ventana secundaria
     window.grab_set()  # Evita la interacción con la ventana principal
 
-    label = ctk.CTkLabel(window, text="ToplevelWindow")
+    label = ctk.CTkLabel(window, text="Modificacion De Datos")
     label.pack(padx=20, pady=20)
     canvas = tk.Canvas(window)
     scrollbar = tk.Scrollbar(window,orient="vertical",command=canvas.yview)
@@ -160,12 +163,16 @@ def setup_toplevel(window, selected_data):
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
 
+    #entry_widgets = []
     for i, value in enumerate(selected_data):
         label = ctk.CTkLabel(scroll_frame, text=f"Dato {i + 1}:")
         label.pack(padx=10, pady=5)
         entry = ctk.CTkEntry(scroll_frame)
         entry.insert(0, value)
         entry.pack(padx=10, pady=5)
+        #entry_widgets.append(entry)
+    #boton_guardar = ctk.CTkButton(scroll_frame, text="Guardar Cambios", command=lambda:(entry_widgets,selected_data))
+    #boton_guardar.pack(pady=20)
 
 def calcular_distancia(RUT1,RUT2):
     pass
