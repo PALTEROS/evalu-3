@@ -60,11 +60,13 @@ def guardar_data(tree):
         df = pd.DataFrame(data, columns=[tree.heading(col)["text"] for col in tree["columns"]])
         
         # Convertir coordenadas UTM a latitud y longitud
-        df[['Latitud', 'Longitud']] = df.apply(lambda row: utm_to_latlong(float(row['Easting']), float(row['Northing']), int(row['ZoneNumber']), row['ZoneLetter']), axis=1, result_type='expand')
+        agregar_lat_long_a_csv('data_a_procesar.csv.csv')
         
         # Guardar en la base de datos
         agregar_df_a_sqlite(df, 'progra2024_final.db', 'personas_coordenadas')
         
+        agregar_lat_long_a_csv('data_a_procesar.csv.csv')
+
         # Mostrar mensaje de confirmación
         CTkMessagebox(title="Actualización de datos", message="Los datos han sido actualizados.")
 
@@ -84,9 +86,8 @@ def agregar_df_a_sqlite(df, database_name, table_name):
         Longitud REAL
     )
     ''')
-    
     # Insertar datos en la tabla
-    df.to_sql(table_name, conn, if_exists='replace', index=False)
+    df.to_sql(table_name, conn, if_exists='append', index=False)
     
     conn.commit()
     conn.close()
@@ -115,33 +116,7 @@ def combo_event2(value):
     result=ejecutar_query_sqlite('progra2024_final.db', 'personas_coordenadas',columns='Latitude,Longitude,Nombre,Apellido', where_column='RUT', where_value=value)
     nombre_apellido=str(result[0][2])+' '+str(result[0][3])
     marker_2 = map_widget.set_marker(result[0][0], result[0][1], text=nombre_apellido)
-
-def eliminar_dato(tree, db_name, table_name):
-    # Obtener la fila seleccionada
-    selected_item = tree.selection()
-    
-    if selected_item:
-        # Obtener los valores de la fila seleccionada
-        values = tree.item(selected_item, 'values')
-        
-        # Suponiendo que el primer valor es el identificador único (ID)
-        id_to_delete = values[0]
-        
-        # Eliminar la fila del Treeview
-        tree.delete(selected_item)
-        
-        # Eliminar la fila de la base de datos
-        conn = sqlite3.connect(db_name)
-        cursor = conn.cursor()
-        cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (id_to_delete,))
-        conn.commit()
-        conn.close()
-        
-        # Mostrar mensaje de confirmación
-        CTkMessagebox(title="Eliminar dato", message="El dato ha sido eliminado.")
-    else:
-        # Mostrar mensaje de error si no hay fila seleccionada
-        CTkMessagebox(title="Error", message="No se ha seleccionado ninguna fila.")
+   
     
 def combo_event(value):
     pass
@@ -195,20 +170,33 @@ def setup_toplevel(window, selected_data):
 def calcular_distancia(RUT1,RUT2):
     pass
 
-def guardar_data(tree):
-    selected_items = tree.selection()
-    data = [tree.item(item, 'values') for item in selected_items]
-    if data:
-        df = pd.DataFrame(data, columns=[tree.heading(col)["text"] for col in tree["columns"]])
+def eliminar_dato(tree, db_name, table_name):
+    # Obtener la fila seleccionada
+    selected_item = tree.selection()
+    
+    if selected_item:
+        # Obtener los valores de la fila seleccionada
+        values = tree.item(selected_item, 'values')
         
-        # Convertir coordenadas UTM a latitud y longitud
-        df[['Latitud', 'Longitud']] = df.apply(lambda row: utm_to_latlong(float(row['UTM_Easting']), float(row['UTM_Northing']), int(row['UTM_Zone_Number']), row['UTM_Zone_Letter']), axis=1, result_type='expand')
+        # Suponiendo que el primer valor es el identificador único (ID)
+        rut_to_delete = values[0]
         
-        # Guardar en la base de datos
-        agregar_df_a_sqlite(df, 'progra2024_final.db', 'personas_coordenadas')
+        # Eliminar la fila del Treeview
+        tree.delete(selected_item)
+        
+        # Eliminar la fila de la base de datos
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {table_name} WHERE RUT = ?", (rut_to_delete,))
+        conn.commit()
+        conn.close()
         
         # Mostrar mensaje de confirmación
-        CTkMessagebox(title="Actualización de datos", message="Los datos han sido actualizados.")
+        CTkMessagebox(title="Eliminar dato", message="El dato ha sido eliminado.")
+    else:
+        # Mostrar mensaje de error si no hay fila seleccionada
+        CTkMessagebox(title="Error", message="No se ha seleccionado ninguna fila.")
+    
 
 def selecion_data(tree):
     selected_item = tree.focus()
@@ -481,31 +469,22 @@ optionmenu_1 = ctk.CTkOptionMenu(third_frame_top, dynamic_resizing=True,
 optionmenu_1.grid(row=0, column=1, padx=5, pady=(5, 5))
 
 #--------------------------------------------------------------------------
-def agregar_lt_lg():
-    csv_file_path = 'data_a_procesar.csv.csv'
-    df = pd.read_csv(csv_file_path)
-    # Inicializar las columnas de latitud y longitud con valores nulos
-    df['latitud'] = 0
-    df['longitud'] = 0
-    
-    if (df['latitud'] != 0).any() or (df['longitud'] != 0).any():
-            print("Las columnas 'latitud' y 'longitud' ya contienen datos diferentes de cero.")
-            return  
-    else:
-        df['latitud'] = [0] * len(df)
-        df['longitud'] = [0] * len(df)
-    
-    # Guardar el DataFrame de vuelta en el archivo CSV
-    df.to_csv(csv_file_path, index=False)
 
-    return df
-
-agregar_lt_lg()
 #_--------------------------------------------------------------------------
 
+def agregar_lat_long_a_csv(csv_file):
+    # Leer el archivo CSV
+    df = pd.read_csv(csv_file)
+    
+    # Convertir coordenadas UTM a latitud y longitud
+    df[['Latitud', 'Longitud']] = df.apply(lambda row: utm_to_latlong(float(row['UTM_Easting']), float(row['UTM_Northing']), int(row['UTM_Zone_Number']), row['UTM_Zone_Letter']), axis=1, result_type='expand')
+    
+    # Guardar el archivo CSV actualizado
+    df.to_csv(csv_file, index=False)
 
+# Ejemplo de uso
 
-
+#-------------------------------------------------------------
 # Seleccionar el marco predeterminado
 select_frame_by_name("home")
 toplevel_window = None
