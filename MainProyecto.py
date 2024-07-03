@@ -401,6 +401,19 @@ top_frame.pack(side=ctk.TOP, fill=ctk.X)
 bottom_frame = ctk.CTkFrame(second_frame)
 bottom_frame.pack(side=ctk.TOP, fill=ctk.BOTH, expand=True)
 
+# Configuración del panel derecho en 'Frame2'
+top_right_panel = ttk.Frame(top_frame)
+top_right_panel.pack(side='right', fill='both', expand=True)
+
+# Agregar la etiqueta "Seleccione Estado Emocional"
+etiqueta_seleccion_estado = ttk.Label(top_right_panel, text="Seleccione Estado Emocional")
+etiqueta_seleccion_estado.pack(pady=10, padx=10)
+
+# Configuración del combobox derecho
+combobox_right = ttk.Combobox(top_right_panel, values=["Feliz", "Triste", "Enojado", "Calmado"])
+combobox_right.pack(pady=10, padx=10)
+
+
 # Crear los paneles izquierdo y derecho para los gráficos
 left_panel = ctk.CTkFrame(bottom_frame)
 left_panel.pack(side=ctk.LEFT, fill=ctk.BOTH, expand=True)
@@ -415,13 +428,15 @@ top_left_panel.pack(side=ctk.LEFT, fill=ctk.X, expand=True)
 top_right_panel = ctk.CTkFrame(top_frame)
 top_right_panel.pack(side=ctk.RIGHT, fill=ctk.X, expand=True)
 
-# Agregar un Combobox al panel superior izquierdo
+
+# Agrega la etiqueta antes del combobox izquierdo
+etiqueta_seleccion_pais = ctk.CTkLabel(top_left_panel, text="Seleccione país")
+etiqueta_seleccion_pais.pack(pady=20, padx=20)
+
+# Agrega un Combobox al panel superior izquierdo
 combobox_left = ctk.CTkComboBox(top_left_panel, values=["Opción 1", "Opción 2", "Opción 3"])
 combobox_left.pack(pady=20, padx=20)
 
-# Agregar un Combobox al panel superior derecho
-combobox_right = ctk.CTkComboBox(top_right_panel, values=["Opción 1", "Opción 2", "Opción 3"])
-combobox_right.pack(pady=20, padx=20)
 # Crear el gráfico de barras en el panel izquierdo
 fig1, ax1 = plt.subplots()
 profesiones = ["Profesion A", "Profesion B", "Profesion C", "Profesion D", "Profesion E"]
