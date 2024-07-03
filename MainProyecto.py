@@ -1,9 +1,9 @@
 import math
 import customtkinter as ctk
 import os
-import tkinter
+import tkinter as tk
 from PIL import Image
-from tkinter import filedialog
+from tkinter import filedialog, ttk
 import pandas as pd
 from CTkTable import CTkTable
 from CTkTableRowSelector import CTkTableRowSelector
@@ -53,22 +53,43 @@ def ejecutar_query_sqlite(database_name, table_name, columns='*', where_column=N
 
     return resultados
 
-def agregar_df_a_sqlite(df, database_name, table_name):
-    """
-    Agrega un DataFrame a una tabla SQLite.
+def guardar_data(tree):
+    selected_items = tree.selection()
+    data = [tree.item(item, 'values') for item in selected_items]
+    if data:
+        df = pd.DataFrame(data, columns=[tree.heading(col)["text"] for col in tree["columns"]])
+        
+        # Convertir coordenadas UTM a latitud y longitud
+        agregar_lat_long_a_csv('data_a_procesar.csv.csv')
+        
+        # Guardar en la base de datos
+        agregar_df_a_sqlite(df, 'progra2024_final.db', 'personas_coordenadas')
+        
+        agregar_lat_long_a_csv('data_a_procesar.csv.csv')
 
-    Parámetros:
-    df (pd.DataFrame): DataFrame a agregar a la base de datos.
-    database_name (str): Nombre del archivo de la base de datos SQLite.
-    table_name (str): Nombre de la tabla donde se insertará el DataFrame.
-    """
-    # Conectar a la base de datos SQLite
+        # Mostrar mensaje de confirmación
+        CTkMessagebox(title="Actualización de datos", message="Los datos han sido actualizados.")
+
+def agregar_df_a_sqlite(df, database_name, table_name):
     conn = sqlite3.connect(database_name)
+    cursor = conn.cursor()
     
-    # Agregar el DataFrame a la tabla SQLite
-    df.to_sql(table_name, conn, if_exists='replace', index=False)
+    # Crear tabla si no existe
+    cursor.execute(f'''
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        RUT TEXT PRIMARY KEY,
+        Easting REAL,
+        Northing REAL,
+        ZoneNumber INTEGER,
+        ZoneLetter TEXT,
+        Latitud REAL,
+        Longitud REAL
+    )
+    ''')
+    # Insertar datos en la tabla
+    df.to_sql(table_name, conn, if_exists='append', index=False)
     
-    # Cerrar la conexión
+    conn.commit()
     conn.close()
 #documentacion=https://github.com/TomSchimansky/TkinterMapView?tab=readme-ov-file#create-path-from-position-list
 def get_country_city(lat,long):
@@ -118,7 +139,7 @@ def center_window(window, width, height):
 
     window.geometry(f"{width}x{height}+{x}+{y}")
 
-def setup_toplevel(window):
+def setup_toplevel(window, selected_data):
     window.geometry("400x300")
     window.title("Modificar datos")
     center_window(window, 400, 300)  # Centrar la ventana secundaria
@@ -128,50 +149,127 @@ def setup_toplevel(window):
 
     label = ctk.CTkLabel(window, text="ToplevelWindow")
     label.pack(padx=20, pady=20)
+    canvas = tk.Canvas(window)
+    scrollbar = tk.Scrollbar(window,orient="vertical",command=canvas.yview)
+    scroll_frame = ctk.CTkFrame(canvas)
+
+    scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.create_window((0,0), window=scroll_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    for i, value in enumerate(selected_data):
+        label = ctk.CTkLabel(scroll_frame, text=f"Dato {i + 1}:")
+        label.pack(padx=10, pady=5)
+        entry = ctk.CTkEntry(scroll_frame)
+        entry.insert(0, value)
+        entry.pack(padx=10, pady=5)
+
 def calcular_distancia(RUT1,RUT2):
     pass
-def guardar_data(row_selector):
-    print(row_selector.get())
-    print(row_selector.table.values)
-def editar_panel(root):
+
+def eliminar_dato(tree, db_name, table_name):
+    # Obtener la fila seleccionada
+    selected_item = tree.selection()
+    
+    if selected_item:
+        # Obtener los valores de la fila seleccionada
+        values = tree.item(selected_item, 'values')
+        
+        # Suponiendo que el primer valor es el identificador único (ID)
+        rut_to_delete = values[0]
+        
+        # Eliminar la fila del Treeview
+        tree.delete(selected_item)
+        
+        # Eliminar la fila de la base de datos
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {table_name} WHERE RUT = ?", (rut_to_delete,))
+        conn.commit()
+        conn.close()
+        
+        # Mostrar mensaje de confirmación
+        CTkMessagebox(title="Eliminar dato", message="El dato ha sido eliminado.")
+    else:
+        # Mostrar mensaje de error si no hay fila seleccionada
+        CTkMessagebox(title="Error", message="No se ha seleccionado ninguna fila.")
+    
+
+def selecion_data(tree):
+    selected_item = tree.focus()
+    selected_data = tree.item(selected_item,'values')
+    return selected_data
+
+def editar_panel(root, selected_data):
     global toplevel_window
     if toplevel_window is None or not toplevel_window.winfo_exists():
         toplevel_window = ctk.CTkToplevel(root)
-        setup_toplevel(toplevel_window)
+        setup_toplevel(toplevel_window, selected_data)
+        for i,value in enumerate(selected_data):
+            label = ctk.CTkLabel(toplevel_window, text=f"Dato {i +1}:")
+            label.pack(padx=10, pady=5)
+            entry = ctk.CTkEntry(toplevel_window)
+            entry.insert(0, value)
+            entry.pack(padx=10, pady=5)
     else:
         toplevel_window.focus()
+
 # Función para manejar la selección del archivo
 def seleccionar_archivo():
     archivo = filedialog.askopenfilename(filetypes=[("Archivos CSV", "*.csv")])
     if archivo:
         print(f"Archivo seleccionado: {archivo}")
-        mostrar_datos(archivo)
+        leer_archivo_csv(archivo)
+###############################################################################################################
 def on_scrollbar_move(*args):
     canvas.yview(*args)
     canvas.bbox("all")
+###############################################################################################################
 def leer_archivo_csv(ruta_archivo):
     try:
         datos = pd.read_csv(ruta_archivo)
         mostrar_datos(datos)
     except Exception as e:
         print(f"Error al leer el archivo CSV: {e}")
-
+################################################################################################################
 # Función para mostrar los datos en la tabla
 def mostrar_datos(datos):
-    # Botón para imprimir las filas seleccionadas
-    boton_imprimir = ctk.CTkButton(
-        master=home_frame, text="guardar informacion", command=lambda: guardar_data())
-    boton_imprimir.grid(row=2, column=0, pady=(0, 20))
-    
-    # Botón para imprimir las filas seleccionadas
-    boton_imprimir = ctk.CTkButton(
-        master=data_panel_superior, text="modificar dato", command=lambda: editar_panel(root))
-    boton_imprimir.grid(row=0, column=2, pady=(0, 0))
+    frame_treeview = ctk.CTkFrame(home_frame)
+    frame_treeview.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
 
-    # Botón para imprimir las filas seleccionadas
-    boton_imprimir = ctk.CTkButton(
-        master=data_panel_superior, text="Eliminar dato", command=lambda: editar_panel(root),fg_color='purple',hover_color='red')
-    boton_imprimir.grid(row=0, column=3, padx=(10, 0))
+    horsroll = tk.Scrollbar(frame_treeview, orient="horizontal")
+
+    tree = ttk.Treeview(frame_treeview, columns=list(datos.columns), show="headings", xscrollcommand=horsroll.set)
+    tree.grid(row=0, column=0, sticky="nsew")
+
+    for col in datos.columns:
+        tree.heading(col, text=col)
+        tree.column(col, width=100)
+
+    for _, row in datos.iterrows():
+        tree.insert("", "end", values=list(row))
+
+    horsroll.grid(row=1, column=0, sticky="ew")
+    horsroll.config(command=tree.xview)
+
+    frame_treeview.grid_rowconfigure(0, weight=1)
+    frame_treeview.grid_columnconfigure(0, weight=1)
+
+    boton_guardar = ctk.CTkButton(
+        master=home_frame, text="Guardar información", command=lambda: guardar_data(tree))
+    boton_guardar.grid(row=2, column=0, pady=(0, 20))
+
+    boton_modificar = ctk.CTkButton(
+        master=data_panel_superior, text="Modificar dato", command=lambda: editar_panel(root, selecion_data(tree)))
+    boton_modificar.grid(row=0, column=2, pady=(0, 0))
+
+    boton_eliminar = ctk.CTkButton(
+        master=data_panel_superior, text="Eliminar dato", command=lambda: eliminar_dato(tree, 'progra2024_final.db', 'personas_coordenadas'), fg_color='purple', hover_color='red')
+    boton_eliminar.grid(row=0, column=3, padx=(10, 0))
+#################################################################################################################
 def select_frame_by_name(name):
     home_button.configure(fg_color=("gray75", "gray25") if name == "home" else "transparent")
     frame_2_button.configure(fg_color=("gray75", "gray25") if name == "frame_2" else "transparent")
@@ -296,6 +394,19 @@ top_frame.pack(side=ctk.TOP, fill=ctk.X)
 bottom_frame = ctk.CTkFrame(second_frame)
 bottom_frame.pack(side=ctk.TOP, fill=ctk.BOTH, expand=True)
 
+# Configuración del panel derecho en 'Frame2'
+top_right_panel = ttk.Frame(top_frame)
+top_right_panel.pack(side='right', fill='both', expand=True)
+
+# Agregar la etiqueta "Seleccione Estado Emocional"
+etiqueta_seleccion_estado = ctk.CTkLabel(top_right_panel, text="Seleccione Estado Emocional")
+etiqueta_seleccion_estado.pack(pady=10, padx=10)
+
+# Configuración del combobox derecho
+combobox_right = ctk.CTkComboBox(top_right_panel, values=["Feliz", "Triste", "Enojado", "Calmado"])
+combobox_right.pack(pady=10, padx=10)
+
+
 # Crear los paneles izquierdo y derecho para los gráficos
 left_panel = ctk.CTkFrame(bottom_frame)
 left_panel.pack(side=ctk.LEFT, fill=ctk.BOTH, expand=True)
@@ -310,13 +421,15 @@ top_left_panel.pack(side=ctk.LEFT, fill=ctk.X, expand=True)
 top_right_panel = ctk.CTkFrame(top_frame)
 top_right_panel.pack(side=ctk.RIGHT, fill=ctk.X, expand=True)
 
-# Agregar un Combobox al panel superior izquierdo
-combobox_left = ctk.CTkComboBox(top_left_panel, values=["Opción 1", "Opción 2", "Opción 3"])
-combobox_left.pack(pady=20, padx=20)
 
-# Agregar un Combobox al panel superior derecho
-combobox_right = ctk.CTkComboBox(top_right_panel, values=["Opción 1", "Opción 2", "Opción 3"])
-combobox_right.pack(pady=20, padx=20)
+# Agrega la etiqueta antes del combobox izquierdo
+etiqueta_seleccion_pais = ctk.CTkLabel(top_left_panel, text="Seleccione país")
+etiqueta_seleccion_pais.pack(pady=10, padx=10)
+
+# Agrega un Combobox al panel superior izquierdo
+combobox_left = ctk.CTkComboBox(top_left_panel, values=["Opción 1", "Opción 2", "Opción 3"])
+combobox_left.pack(pady=10, padx=10)
+
 # Crear el gráfico de barras en el panel izquierdo
 fig1, ax1 = plt.subplots()
 profesiones = ["Profesion A", "Profesion B", "Profesion C", "Profesion D", "Profesion E"]
@@ -370,11 +483,23 @@ optionmenu_1 = ctk.CTkOptionMenu(third_frame_top, dynamic_resizing=True,
                                                         values=["Value 1", "Value 2", "Value Long Long Long"],command=lambda value:combo_event(value))
 optionmenu_1.grid(row=0, column=1, padx=5, pady=(5, 5))
 
+#--------------------------------------------------------------------------
 
+#_--------------------------------------------------------------------------
 
+def agregar_lat_long_a_csv(csv_file):
+    # Leer el archivo CSV
+    df = pd.read_csv(csv_file)
+    
+    # Convertir coordenadas UTM a latitud y longitud
+    df[['Latitud', 'Longitud']] = df.apply(lambda row: utm_to_latlong(float(row['UTM_Easting']), float(row['UTM_Northing']), int(row['UTM_Zone_Number']), row['UTM_Zone_Letter']), axis=1, result_type='expand')
+    
+    # Guardar el archivo CSV actualizado
+    df.to_csv(csv_file, index=False)
 
+# Ejemplo de uso
 
-
+#-------------------------------------------------------------
 # Seleccionar el marco predeterminado
 select_frame_by_name("home")
 toplevel_window = None
